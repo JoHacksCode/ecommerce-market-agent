@@ -1,8 +1,6 @@
 """
-LangGraph agent graph.
-Uses a ReAct-style tool-calling loop:
+LangGraph ReAct agent graph.
   START → agent_node → (tool_node | END)
-The LLM decides which tools to call and in what order.
 """
 
 import json
@@ -24,6 +22,7 @@ from market_agent.tools.web_scraper import WebScraperTool
 
 logger = logging.getLogger(__name__)
 
+
 # ── State ──────────────────────────────────────────────────────────────────────
 
 
@@ -34,7 +33,7 @@ class AgentState(TypedDict):
     report_html: str | None
 
 
-# ── Tool wrappers (convert BaseTool → LangChain StructuredTool) ────────────────
+# ── Tool wrappers ──────────────────────────────────────────────────────────────
 
 
 def _make_lc_tools() -> list[StructuredTool]:
@@ -91,45 +90,78 @@ def build_graph() -> StateGraph:
         temperature=0,
     ).bind_tools(lc_tools)
 
-    # ── Nodes ──────────────────────────────────────────────────────────────────
-
     def agent_node(state: AgentState) -> dict:
         logger.debug("agent_node invoked, messages=%d", len(state["messages"]))
         response: AIMessage = llm.invoke(state["messages"])
+
+        if not response.tool_calls and not response.content:
+            logger.warning("LLM returned an empty response with no tool calls")
+
         return {"messages": [response]}
 
     def tool_node(state: AgentState) -> dict:
         last: AIMessage = state["messages"][-1]
         tool_messages: list[ToolMessage] = []
+        update: dict[str, Any] = {}
 
         for call in last.tool_calls:
-            tool = tool_map[call["name"]]
-            logger.debug("Calling tool %s with args %s", call["name"], call["args"])
-            result = tool.invoke(call["args"])
+            tool_name = call["name"]
+            logger.debug("Invoking tool '%s' with args: %s", tool_name, call["args"])
+
+            try:
+                result = tool_map[tool_name].invoke(call["args"])
+            except KeyError:
+                logger.error("Unknown tool requested by LLM: '%s'", tool_name)
+                tool_messages.append(
+                    ToolMessage(
+                        content=json.dumps({"error": f"Unknown tool: {tool_name}"}),
+                        tool_call_id=call["id"],
+                    )
+                )
+                continue
+            except Exception as exc:  # noqa: BLE001
+                logger.exception("Tool '%s' raised an unexpected exception", tool_name)
+                tool_messages.append(
+                    ToolMessage(
+                        content=json.dumps({"error": str(exc)}),
+                        tool_call_id=call["id"],
+                    )
+                )
+                continue
+
             tool_messages.append(ToolMessage(content=result, tool_call_id=call["id"]))
 
-            # Capture the final report when the report_generator tool finishes
-            if call["name"] == "report_generator":
+            if tool_name == "report_generator":
                 try:
                     payload = json.loads(result)
-                    if payload.get("success") and "data" in payload:
-                        return {
-                            "messages": tool_messages,
-                            "final_report": payload["data"],
-                            "report_html": payload.get("report_html"),
-                        }
-                except json.JSONDecodeError:
-                    pass
+                except json.JSONDecodeError as exc:
+                    logger.error("Failed to parse report_generator output as JSON: %s", exc)
+                    continue
 
-        return {"messages": tool_messages}
+                if not payload.get("success"):
+                    logger.error(
+                        "report_generator returned success=False: %s",
+                        payload.get("error"),
+                    )
+                    continue
+
+                if "data" not in payload:
+                    logger.error("report_generator payload missing 'data' key")
+                    continue
+
+                update = {
+                    "final_report": payload["data"],
+                    "report_html": payload.get("report_html"),
+                }
+                logger.info("report_generator completed successfully")
+
+        return {"messages": tool_messages, **update}
 
     def should_continue(state: AgentState) -> str:
         last = state["messages"][-1]
         if isinstance(last, AIMessage) and last.tool_calls:
             return "tools"
         return END
-
-    # ── Assemble ───────────────────────────────────────────────────────────────
 
     graph = StateGraph(AgentState)
     graph.add_node("agent", agent_node)
@@ -145,28 +177,60 @@ def build_graph() -> StateGraph:
 
 
 async def run_analysis(product_name: str) -> dict[str, Any]:
-    """Entry-point called by the API layer."""
+    """
+    Runs the ReAct agent and returns:
+      {
+        "final_report": dict | None,
+        "report_html":  str  | None,
+      }
+    Raises AgentError on unrecoverable failures so the API layer
+    can return a meaningful 500 instead of a silent empty report.
+    """
+    logger.info("run_analysis started for product='%s'", product_name)
     graph = build_graph()
-    initial_state: AgentState = AgentState(
-        messages=[HumanMessage(content=(f"{SYSTEM_PROMPT}\n\nPerform a full market analysis for: {product_name}"))],
-        product_name=product_name,
-        final_report=None,
-        report_html=None,
-    )
+
+    initial_state: AgentState = {
+        "messages": [HumanMessage(content=(f"{SYSTEM_PROMPT}\n\nPerform a full market analysis for: {product_name}"))],
+        "product_name": product_name,
+        "final_report": None,
+        "report_html": None,
+    }
+
     final_state = await graph.ainvoke(
         initial_state,
         config={"recursion_limit": settings.agent_recursion_limit},
     )
 
-    if final_state.get("final_report"):
-        return {
-            "final_report": final_state["final_report"],
-            "report_html": final_state.get("report_html"),
-        }
+    final_report = final_state.get("final_report")
+    report_html = final_state.get("report_html")
 
-    # Fallback: extract last AI text message
-    for msg in reversed(final_state["messages"]):
-        if isinstance(msg, AIMessage) and msg.content:
-            return {"error": "No final report generated", "last_raw_response": msg.content, "product": product_name}
+    if not final_report:
+        # Collect tool errors from message history to surface in the exception
+        tool_errors = [
+            msg.content
+            for msg in final_state["messages"]
+            if isinstance(msg, ToolMessage) and "error" in msg.content.lower()
+        ]
+        logger.error(
+            "Agent finished without a report for '%s'. Tool errors: %s",
+            product_name,
+            tool_errors or "none found",
+        )
+        raise AgentError(
+            f"Agent did not produce a report for '{product_name}'.",
+            tool_errors=tool_errors,
+        )
 
-    return {"error": "Agent did not produce a report.", "product": product_name}
+    logger.info("run_analysis completed for product='%s'", product_name)
+    return {"final_report": final_report, "report_html": report_html}
+
+
+# ── Custom exception ───────────────────────────────────────────────────────────
+
+
+class AgentError(Exception):
+    """Raised when the agent completes without producing a valid report."""
+
+    def __init__(self, message: str, tool_errors: list[str] | None = None) -> None:
+        super().__init__(message)
+        self.tool_errors = tool_errors or []

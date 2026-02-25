@@ -5,7 +5,7 @@ import logging
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import HTMLResponse
 
-from market_agent.agent.graph import run_analysis
+from market_agent.agent.graph import AgentError, run_analysis
 from market_agent.api.models import AnalysisRequest, AnalysisResponse
 
 logger = logging.getLogger(__name__)
@@ -22,11 +22,24 @@ async def analyze_product_json(request: AnalysisRequest) -> AnalysisResponse:
     """Returns the full structured report as JSON (default)."""
     logger.info("JSON analysis requested for: %s", request.product_name)
     try:
-        analysis = await run_analysis(request.product_name)
-        return AnalysisResponse(success=True, product=request.product_name, report=analysis.get("final_report"))
+        result = await run_analysis(request.product_name)
+        return AnalysisResponse(
+            success=True,
+            product=request.product_name,
+            report=result["final_report"],
+        )
+    except AgentError as exc:
+        logger.error("AgentError for '%s': %s", request.product_name, exc)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={"message": str(exc), "tool_errors": exc.tool_errors},
+        ) from exc
     except Exception as exc:  # noqa: BLE001
-        logger.exception("Agent failed for product: %s", request.product_name)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+        logger.exception("Unexpected error for product: %s", request.product_name)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(exc),
+        ) from exc
 
 
 @router.post(
@@ -39,15 +52,24 @@ async def analyze_product_html(request: AnalysisRequest) -> HTMLResponse:
     """Returns a self-contained HTML page with interactive Plotly visualizations."""
     logger.info("HTML analysis requested for: %s", request.product_name)
     try:
-        analysis = await run_analysis(request.product_name)
-        if report_html := analysis.get("report_html"):
-            return HTMLResponse(content=report_html)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Report generator did not produce an HTML output.",
-        )
+        result = await run_analysis(request.product_name)
+        if not result.get("report_html"):
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Report generator did not produce an HTML output.",
+            )
+        return HTMLResponse(content=result["report_html"])
     except HTTPException:
         raise
+    except AgentError as exc:
+        logger.error("AgentError for '%s': %s", request.product_name, exc)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={"message": str(exc), "tool_errors": exc.tool_errors},
+        ) from exc
     except Exception as exc:  # noqa: BLE001
-        logger.exception("Agent failed for product: %s", request.product_name)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+        logger.exception("Unexpected error for product: %s", request.product_name)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(exc),
+        ) from exc
