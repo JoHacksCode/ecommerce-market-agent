@@ -33,6 +33,7 @@ class AgentState(TypedDict):
     final_report: dict[str, Any] | None
     report_html: str | None
 
+
 # ── Tool wrappers (convert BaseTool → LangChain StructuredTool) ────────────────
 
 
@@ -158,7 +159,10 @@ async def run_analysis(product_name: str) -> dict[str, Any]:
     )
 
     if final_state.get("final_report"):
-        return final_state["final_report"]
+        return {
+            "final_report": final_state["final_report"],
+            "report_html": final_state.get("report_html"),
+        }
 
     # Fallback: extract last AI text message
     for msg in reversed(final_state["messages"]):
