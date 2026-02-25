@@ -1,21 +1,18 @@
-### Health check
-GET http://localhost:8000/health
-
-### Analyze iPhone 15 (POST)
-POST http://localhost:8000/api/v1/analyze
+### JSON report — structured data
+POST http://localhost:8000/api/v1/analyze/json
 Content-Type: application/json
 
 {
   "product_name": "iPhone 15"
 }
 
-### Analyze Nike Air Max (GET convenience)
-GET http://localhost:8000/api/v1/analyze/Nike%20Air%20Max
-
-### Analyze MacBook Pro
-POST http://localhost:8000/api/v1/analyze
+### HTML report — open directly in browser
+POST http://localhost:8000/api/v1/analyze/html
 Content-Type: application/json
 
 {
-  "product_name": "MacBook Pro"
+  "product_name": "Nike Air Max"
 }
+
+### Health check
+GET http://localhost:8000/health

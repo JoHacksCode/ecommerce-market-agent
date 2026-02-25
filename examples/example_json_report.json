@@ -1,0 +1,108 @@
+{
+    "success": true,
+    "product": "iPhone 15",
+    "report": {
+        "report_id": "report_iphone_15_20260224_202939",
+        "product": "iPhone 15",
+        "generated_at": "2026-02-24T20:29:39.291824",
+        "executive_summary": {
+            "market_position": "Moderate growth with stable market presence",
+            "price_competitiveness": "Moderate price variance — some optimisation possible",
+            "customer_sentiment": "Negative customer perception — requires immediate attention (38% positive, score 5.6/10)",
+            "market_momentum": "Slight Decrease"
+        },
+        "pricing_analysis": {
+            "price_range": "$879.00 – $1049.99",
+            "average_price": "$969.50",
+            "platforms_analyzed": 4,
+            "listings": [
+                {
+                    "platform": "Amazon",
+                    "price": 999.99,
+                    "availability": "In Stock",
+                    "rating": 4.7,
+                    "reviews_count": 15243
+                },
+                {
+                    "platform": "eBay",
+                    "price": 879.0,
+                    "availability": "In Stock",
+                    "rating": 4.5,
+                    "reviews_count": 3891
+                },
+                {
+                    "platform": "BestBuy",
+                    "price": 1049.99,
+                    "availability": "In Stock",
+                    "rating": 4.8,
+                    "reviews_count": 8721
+                },
+                {
+                    "platform": "Walmart",
+                    "price": 949.0,
+                    "availability": "Limited",
+                    "rating": 4.6,
+                    "reviews_count": 5234
+                }
+            ]
+        },
+        "sentiment_analysis": {
+            "product": "iPhone 15",
+            "total_reviews_analyzed": 8,
+            "sentiment_breakdown": {
+                "positive_pct": 37.5,
+                "negative_pct": 25.0,
+                "neutral_pct": 37.5
+            },
+            "overall_satisfaction_score": 5.6,
+            "top_positive_reviews": [
+                "Absolutely love the camera quality — best iPhone yet!",
+                "Dynamic Island is genuinely useful now with more app support.",
+                "Display is gorgeous but no ProMotion upgrade is a miss."
+            ],
+            "top_negative_reviews": [
+                "Battery life is disappointing compared to the competition.",
+                "Too expensive for such minor upgrades from iPhone 14."
+            ]
+        },
+        "market_trends": {
+            "price_trend": "stable",
+            "trend_direction": "slight_decrease",
+            "monthly_price_history": [
+                1099,
+                1079,
+                1049,
+                1029,
+                999,
+                989
+            ],
+            "search_volume_trend": "increasing",
+            "market_share_pct": 28.5,
+            "competitors": [
+                "Samsung Galaxy S24",
+                "Google Pixel 8",
+                "OnePlus 12"
+            ],
+            "seasonal_demand": "high_q4",
+            "yoy_growth": 5.2,
+            "product": "iPhone 15",
+            "price_change_6m_pct": -10.01
+        },
+        "recommendations": [
+            "💰 Source from lowest-price platforms to maximise margin.",
+            "⚠️  Resolve top pain-points — negative sentiment risks churn.",
+            "📈 Growing market — increase inventory ahead of demand peaks.",
+            "🔽 Prices declining — delay bulk purchasing if supply allows.",
+            "🔍 Review competitor pricing weekly to maintain edge."
+        ],
+        "metadata": {
+            "data_sources": [
+                "mock_scraper",
+                "mock_reviews",
+                "mock_market_db"
+            ],
+            "confidence_score": 0.85
+        }
+    },
+    "error": null
+}
