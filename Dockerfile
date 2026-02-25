@@ -8,6 +8,7 @@ WORKDIR /app
 # Copy dependency manifests first for layer caching
 COPY pyproject.toml .
 COPY README.md .
+COPY uv.lock .
 
 # Install production dependencies only
 RUN uv sync --no-dev --frozen
