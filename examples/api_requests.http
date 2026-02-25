@@ -1,0 +1,21 @@
+### Health check
+GET http://localhost:8000/health
+
+### Analyze iPhone 15 (POST)
+POST http://localhost:8000/api/v1/analyze
+Content-Type: application/json
+
+{
+  "product_name": "iPhone 15"
+}
+
+### Analyze Nike Air Max (GET convenience)
+GET http://localhost:8000/api/v1/analyze/Nike%20Air%20Max
+
+### Analyze MacBook Pro
+POST http://localhost:8000/api/v1/analyze
+Content-Type: application/json
+
+{
+  "product_name": "MacBook Pro"
+}
